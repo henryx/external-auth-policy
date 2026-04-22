@@ -15,6 +15,9 @@ local resty_env = require('resty.env')
 -- HTTP client
 local http = require('resty.http')
 
+-- LRU cache
+local lrucache = require('resty.lrucache')
+
 
 
 -- default values
@@ -167,6 +170,33 @@ local function build_templates(templates)
     end
 end
 
+
+--- function build_cache_key: builds a deterministic cache key from the request parameters
+---@param url string @ the service URL
+---@param method string @ the HTTP method
+---@param headers table @ the request headers
+---@param args table @ the request arguments
+---@return string @ the cache key
+
+local function build_cache_key(url, method, headers, args)
+    local parts = { url, method }
+
+    local sorted_headers = {}
+    for k, v in pairs(headers or {}) do
+        table.insert(sorted_headers, tostring(k) .. "=" .. tostring(v))
+    end
+    table.sort(sorted_headers)
+
+    local sorted_args = {}
+    for k, v in pairs(args or {}) do
+        table.insert(sorted_args, tostring(k) .. "=" .. tostring(v))
+    end
+    table.sort(sorted_args)
+
+    table.insert(parts, table.concat(sorted_headers, "&"))
+    table.insert(parts, table.concat(sorted_args, "&"))
+    return table.concat(parts, "|")
+end
 
 --- function invokeService - Invokes an external service
 --- can invoke HTTP GET and POST services
@@ -321,9 +351,21 @@ function _M.new(config)
     
     -- caching section
 
-    -- self.max_cached_tokens = config.max_cached_tokens or 0
-    -- self.cache_enabled = self.max_cached_tokens > 0
-    -- self.max_ttl_tokens = config.max_ttl_tokens or 0
+    local cache_config = config.cache_configuration or {}
+    self.cache_enabled = cache_config.cache_enabled or false
+    self.cache_ttl = cache_config.cache_ttl or 60
+
+    if self.cache_enabled then
+        local cache_max_size = cache_config.cache_max_size or 1000
+        local c, err = lrucache.new(cache_max_size)
+        if c then
+            self.cache = c
+            ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache initialized, max_size=', cache_max_size, ' ttl=', self.cache_ttl)
+        else
+            ngx.log(ERROR, '- ExternalAuthServicePolicy : failed to create cache: ', err, ' - caching disabled')
+            self.cache_enabled = false
+        end
+    end
 
     ngx.log(ngx.DEBUG, 'initializing.... end ')
     
@@ -511,13 +553,43 @@ function _M:access(context)
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : creating requests')
     service_args = build_request_args(self, context, self.validation_service_params)
 
+    -- cache lookup
+    local cache_key
+    if self.cache_enabled then
+        cache_key = build_cache_key(self.validation_service_url, self.validation_service_method, service_headers, service_args)
+        local cached_status = self.cache:get(cache_key)
+        if cached_status ~= nil then
+            ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache hit, status-> ', cached_status)
+            if cached_status == 200 then
+                ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache hit: validation success!')
+                return
+            else
+                local returned_code
+                if (#self.allowed_status_codes == 0) or has_value(self.allowed_status_codes, cached_status) then
+                    returned_code = cached_status
+                else
+                    returned_code = 500
+                end
+                ngx.status = returned_code
+                return ngx.exit(ngx.status)
+            end
+        end
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache miss, invoking service')
+    end
+
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : invoking service')
     response_status_code, response_error, response_body = invokeService(self.validation_service_url, service_args,
         self.validation_service_method, service_headers, self.timeouts)
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : invoked service response_status_code-> ', response_status_code)
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : invoked service response_error-> ', response_error or '')
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : invoked service response_body-> ', response_body or '')
-    
+
+    -- store result in cache
+    if self.cache_enabled and cache_key then
+        self.cache:set(cache_key, response_status_code, self.cache_ttl)
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cached status ', response_status_code, ' for ', self.cache_ttl, 's')
+    end
+
     if (response_status_code ~= 200) then
         local returned_code
         local returned_message
