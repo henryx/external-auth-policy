@@ -167,7 +167,7 @@ the following parameters identifies the headers to be passed to the Authorizatio
            },
            {
             "action_if_missing": "Set Empty",
-            "header_name": "X-customHeader-03",
+            "header_name": "X-customHeader-03"
            }
           ]
         
@@ -205,6 +205,30 @@ the additional headers section is an array of parameters allowing the user to ad
 ~~~
 
 the full configuration sample can be found [here](#full-policy-configuration-sample) or inside the folder **samples** in the project
+
+#### T03 - Cache Configuration
+
+The cache configuration section enables in-memory caching of auth service responses. When a cache hit occurs, the external service is not invoked and the cached status code is returned immediately, reducing latency and load on the auth service.
+
+> **NOTE:**
+>
+> The cache is per-worker (each nginx worker maintains its own independent cache). This means the effective cache size across the APICast pod is `cache_max_size × number_of_workers`.
+
+| parameter name   | parameter description | default value | mandatory |
+|------------------|-----------------------|---------------|-----------|
+|cache_enabled | enables or disables response caching | false | NO |
+|cache_ttl | time to live for cached entries in seconds | 60 | NO |
+|cache_max_size | maximum number of entries per worker cache | 1000 | NO |
+
+~~~json
+
+        "cache_configuration": {
+          "cache_enabled": true,
+          "cache_ttl": 60,
+          "cache_max_size": 1000
+        }
+
+~~~
       
 
 ## 2. Installation
@@ -236,7 +260,7 @@ after that the APIManager CR should be configured in order to mount the secret i
 
 ~~~
 
-inside the stagingSpec and the productionSpec sections of the yaml.
+inside the `stagingSpec` and the `productionSpec` sections of the yaml.
 
 After that a rollout of the APICast pods will be automatically triggered by the operator. Once finished the policy will be available on 3Scale Administration portal to be configured.
 
@@ -299,9 +323,14 @@ The following sample is a full policy configuration, it should be inserted insid
            },
            {
             "action_if_missing": "Set Empty",
-            "header_name": "X-customHeader-03",
+            "header_name": "X-customHeader-03"
            }
         ]
+       },
+       "cache_configuration": {
+        "cache_enabled": true,
+        "cache_ttl": 60,
+        "cache_max_size": 1000
        }
       }
      }
