@@ -108,6 +108,32 @@
           "validation_service_url"
         ]
       },
+      "cache_configuration":
+      {
+        "type": "object",
+        "description": "caching configuration for auth service responses",
+        "properties": {
+          "cache_enabled": {
+            "description": "enable in-memory caching of auth service responses (per worker)",
+            "type": "boolean",
+            "default": false
+          },
+          "cache_ttl": {
+            "description": "time to live for cached responses in seconds",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600,
+            "default": 60
+          },
+          "cache_max_size": {
+            "description": "maximum number of entries in the cache",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "default": 1000
+          }
+        }
+      },
       "headers_configuration":
       {
         "type":"object",
