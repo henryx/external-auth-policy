@@ -18,6 +18,9 @@ local http = require('resty.http')
 -- LRU cache
 local lrucache = require('resty.lrucache')
 
+-- module-level cache instance: survives across _M.new() calls within the same worker
+local _cache
+
 
 
 -- default values
@@ -344,15 +347,18 @@ function _M.new(config)
     self.cache_key_cookie = cache_config.cache_key_cookie or 'session'
 
     if self.cache_enabled then
-        local cache_max_size = cache_config.cache_max_size or 1000
-        local c, err = lrucache.new(cache_max_size)
-        if c then
-            self.cache = c
-            ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache initialized, max_size=', cache_max_size, ' ttl=', self.cache_ttl)
-        else
-            ngx.log(ERROR, '- ExternalAuthServicePolicy : failed to create cache: ', err, ' - caching disabled')
-            self.cache_enabled = false
+        if not _cache then
+            local cache_max_size = cache_config.cache_max_size or 1000
+            local c, err = lrucache.new(cache_max_size)
+            if c then
+                _cache = c
+                ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache initialized, max_size=', cache_max_size, ' ttl=', self.cache_ttl)
+            else
+                ngx.log(ERROR, '- ExternalAuthServicePolicy : failed to create cache: ', err, ' - caching disabled')
+                self.cache_enabled = false
+            end
         end
+        self.cache = _cache
     end
 
     ngx.log(ngx.DEBUG, 'initializing.... end ')
