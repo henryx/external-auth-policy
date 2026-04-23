@@ -219,17 +219,15 @@ The cache configuration section enables in-memory caching of auth service respon
 |cache_enabled | enables or disables response caching | false | NO |
 |cache_ttl | time to live for cached entries in seconds | 60 | NO |
 |cache_max_size | maximum number of entries per worker cache | 1000 | NO |
-|cache_key_cookie | name of the session cookie whose value is used as cache key | session | NO |
 
-The cache key is the value of the configured session cookie (read via `ngx.var["cookie_<name>"]`). If the cookie is absent from the request, caching is skipped for that call and the auth service is always invoked.
+The cache key is the full request URL, composed of scheme, host, path and query string (e.g. `http://localhost/api/resource?foo=bar`). Each distinct URL is cached independently.
 
 ~~~json
 
         "cache_configuration": {
           "cache_enabled": true,
           "cache_ttl": 60,
-          "cache_max_size": 1000,
-          "cache_key_cookie": "JSESSIONID"
+          "cache_max_size": 1000
         }
 
 ~~~
@@ -334,8 +332,7 @@ The following sample is a full policy configuration, it should be inserted insid
        "cache_configuration": {
         "cache_enabled": true,
         "cache_ttl": 60,
-        "cache_max_size": 1000,
-        "cache_key_cookie": "JSESSIONID"
+        "cache_max_size": 1000
        }
       }
      }

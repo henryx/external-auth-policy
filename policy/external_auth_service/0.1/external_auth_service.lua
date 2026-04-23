@@ -174,17 +174,12 @@ local function build_templates(templates)
 end
 
 
---- function get_cache_key: extracts the value of the configured session cookie to use as cache key
----@param cookie_name string @ the name of the session cookie
----@return string|nil @ the cookie value, or nil if the cookie is absent
+--- function get_cache_key: returns the full request URL (scheme + host + URI) as cache key
+---@return string @ e.g. "http://localhost/api/resource?foo=bar"
 
-local function get_cache_key(cookie_name)
-    local value = ngx.var["cookie_" .. cookie_name]
-    if value then
-        ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: key from cookie "', cookie_name, '"-> ', value)
-    else
-        ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: cookie "', cookie_name, '" not found, caching skipped')
-    end
+local function get_cache_key()
+    local value = ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri
+    ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: key-> ', value)
     return value
 end
 
@@ -344,8 +339,6 @@ function _M.new(config)
     local cache_config = config.cache_configuration or {}
     self.cache_enabled = cache_config.cache_enabled or false
     self.cache_ttl = cache_config.cache_ttl or 60
-    self.cache_key_cookie = cache_config.cache_key_cookie or 'session'
-
     if self.cache_enabled then
         if not _cache then
             local cache_max_size = cache_config.cache_max_size or 1000
@@ -550,7 +543,7 @@ function _M:access(context)
     -- cache lookup
     local cache_key
     if self.cache_enabled then
-        cache_key = get_cache_key(self.cache_key_cookie)
+        cache_key = get_cache_key()
         local cached_status = self.cache:get(cache_key)
         if cached_status ~= nil then
             ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache hit, status-> ', cached_status)
