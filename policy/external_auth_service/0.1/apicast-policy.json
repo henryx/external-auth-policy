@@ -131,6 +131,11 @@
             "minimum": 1,
             "maximum": 100000,
             "default": 1000
+          },
+          "cache_key_cookie": {
+            "description": "name of the session cookie whose value is used as cache key",
+            "type": "string",
+            "default": "session"
           }
         }
       },

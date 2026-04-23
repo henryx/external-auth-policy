@@ -171,31 +171,18 @@ local function build_templates(templates)
 end
 
 
---- function build_cache_key: builds a deterministic cache key from the request parameters
----@param url string @ the service URL
----@param method string @ the HTTP method
----@param headers table @ the request headers
----@param args table @ the request arguments
----@return string @ the cache key
+--- function get_cache_key: extracts the value of the configured session cookie to use as cache key
+---@param cookie_name string @ the name of the session cookie
+---@return string|nil @ the cookie value, or nil if the cookie is absent
 
-local function build_cache_key(url, method, headers, args)
-    local parts = { url, method }
-
-    local sorted_headers = {}
-    for k, v in pairs(headers or {}) do
-        table.insert(sorted_headers, tostring(k) .. "=" .. tostring(v))
+local function get_cache_key(cookie_name)
+    local value = ngx.var["cookie_" .. cookie_name]
+    if value then
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: key from cookie "', cookie_name, '"-> ', value)
+    else
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: cookie "', cookie_name, '" not found, caching skipped')
     end
-    table.sort(sorted_headers)
-
-    local sorted_args = {}
-    for k, v in pairs(args or {}) do
-        table.insert(sorted_args, tostring(k) .. "=" .. tostring(v))
-    end
-    table.sort(sorted_args)
-
-    table.insert(parts, table.concat(sorted_headers, "&"))
-    table.insert(parts, table.concat(sorted_args, "&"))
-    return table.concat(parts, "|")
+    return value
 end
 
 --- function invokeService - Invokes an external service
@@ -354,6 +341,7 @@ function _M.new(config)
     local cache_config = config.cache_configuration or {}
     self.cache_enabled = cache_config.cache_enabled or false
     self.cache_ttl = cache_config.cache_ttl or 60
+    self.cache_key_cookie = cache_config.cache_key_cookie or 'session'
 
     if self.cache_enabled then
         local cache_max_size = cache_config.cache_max_size or 1000
@@ -556,7 +544,7 @@ function _M:access(context)
     -- cache lookup
     local cache_key
     if self.cache_enabled then
-        cache_key = build_cache_key(self.validation_service_url, self.validation_service_method, service_headers, service_args)
+        cache_key = get_cache_key(self.cache_key_cookie)
         local cached_status = self.cache:get(cache_key)
         if cached_status ~= nil then
             ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache hit, status-> ', cached_status)
@@ -587,7 +575,7 @@ function _M:access(context)
     -- store result in cache
     if self.cache_enabled and cache_key then
         self.cache:set(cache_key, response_status_code, self.cache_ttl)
-        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cached status ', response_status_code, ' for ', self.cache_ttl, 's')
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cached status ', response_status_code, ' for ', self.cache_ttl, 's', ' per cache_key ', cache_key)
     end
 
     if (response_status_code ~= 200) then
