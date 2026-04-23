@@ -217,7 +217,8 @@ The cache configuration section enables in-memory caching of auth service respon
 | parameter name   | parameter description | default value | mandatory |
 |------------------|-----------------------|---------------|-----------|
 |cache_enabled | enables or disables response caching | false | NO |
-|cache_ttl | time to live for cached entries in seconds | 60 | NO |
+|cache_ttl_success | time to live in seconds for cached 2xx and 3xx responses | 60 | NO |
+|cache_ttl_failure | time to live in seconds for cached 4xx and 5xx responses | 60 | NO |
 |cache_max_size | maximum number of entries per worker cache | 1000 | NO |
 
 The cache key is the full request URL, composed of scheme, host, path and query string (e.g. `http://localhost/api/resource?foo=bar`). Each distinct URL is cached independently.
@@ -226,7 +227,8 @@ The cache key is the full request URL, composed of scheme, host, path and query 
 
         "cache_configuration": {
           "cache_enabled": true,
-          "cache_ttl": 60,
+          "cache_ttl_success": 60,
+          "cache_ttl_failure": 60,
           "cache_max_size": 1000
         }
 
@@ -331,7 +333,8 @@ The following sample is a full policy configuration, it should be inserted insid
        },
        "cache_configuration": {
         "cache_enabled": true,
-        "cache_ttl": 60,
+        "cache_ttl_success": 60,
+        "cache_ttl_failure": 60,
         "cache_max_size": 1000
        }
       }

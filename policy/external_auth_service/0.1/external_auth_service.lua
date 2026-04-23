@@ -338,14 +338,15 @@ function _M.new(config)
 
     local cache_config = config.cache_configuration or {}
     self.cache_enabled = cache_config.cache_enabled or false
-    self.cache_ttl = cache_config.cache_ttl or 60
+    self.cache_ttl_success = cache_config.cache_ttl_success or 60
+    self.cache_ttl_failure = cache_config.cache_ttl_failure or 60
     if self.cache_enabled then
         if not _cache then
             local cache_max_size = cache_config.cache_max_size or 1000
             local c, err = lrucache.new(cache_max_size)
             if c then
                 _cache = c
-                ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache initialized, max_size=', cache_max_size, ' ttl=', self.cache_ttl)
+                ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache initialized, max_size=', cache_max_size, ' ttl_success=', self.cache_ttl_success, ' ttl_failure=', self.cache_ttl_failure)
             else
                 ngx.log(ERROR, '- ExternalAuthServicePolicy : failed to create cache: ', err, ' - caching disabled')
                 self.cache_enabled = false
@@ -573,8 +574,9 @@ function _M:access(context)
 
     -- store result in cache
     if self.cache_enabled and cache_key then
-        self.cache:set(cache_key, response_status_code, self.cache_ttl)
-        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cached status ', response_status_code, ' for ', self.cache_ttl, 's', ' per cache_key ', cache_key)
+        local ttl = (response_status_code >= 200 and response_status_code < 400) and self.cache_ttl_success or self.cache_ttl_failure
+        self.cache:set(cache_key, response_status_code, ttl)
+        ngx.log(DEBUG, '- ExternalAuthServicePolicy : cached status ', response_status_code, ' for ', ttl, 's')
     end
 
     if (response_status_code ~= 200) then
