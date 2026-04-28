@@ -222,7 +222,11 @@ local function invokeService(serviceUrl, args, httpMethod, headers, timeouts)
             -- creating the HTTP GET service uri appending the arguments
             argstring=""
             for k, v in pairs(args) do
-                argstring = argstring .. "&" .. k .. "=" .. urlencode(v)
+                if v == nil then
+                    argstring = argstring .. "&" .. k
+                else
+                    argstring = argstring .. "&" .. k .. "=" .. urlencode(v)
+                end
             end
             argstring= string.sub(argstring, 2)
             fullApiURL = serviceUrl .. "?" .. argstring .. ""
@@ -497,7 +501,7 @@ local function build_request_args(self, context, params)
     for _, param in ipairs(params) do
         output[param.param] = param.template_string:render(context)
         ngx.log(DEBUG, '- ExternalAuthServicePolicy : added request parameter: ' .. param.param .. 'with value ' ..
-            output[param.param])
+            tostring(output[param.param]))
     end
     print_table(output)
     return output
