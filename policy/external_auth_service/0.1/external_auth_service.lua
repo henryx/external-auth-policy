@@ -174,11 +174,23 @@ local function build_templates(templates)
 end
 
 
---- function get_cache_key: returns the full request URL (scheme + host + URI) as cache key
----@return string @ e.g. "http://localhost/api/resource?foo=bar"
+--- function get_cache_key: renders the configured Liquid cache key template
+---@param template_string table @ TemplateString instance for the cache key
+---@param url string @ validation service URL, available as {{ validation_service_url }} in the template
+---@param args table @ rendered service args, each key available as {{ key }} in the template
+---@param context table @ APICast request context
+---@return string @ the rendered cache key
 
-local function get_cache_key()
-    local value = ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri
+local function get_cache_key(template_string, url, args, context)
+    local cache_context = setmetatable({
+        validation_service_url = url,
+        request_uri            = ngx.var.request_uri,
+        args                   = ngx.var.args or '',
+    }, { __index = context })
+    for k, v in pairs(args or {}) do
+        cache_context[k] = v
+    end
+    local value = template_string:render(cache_context)
     ngx.log(DEBUG, '- ExternalAuthServicePolicy : get_cache_key: key-> ', value)
     return value
 end
@@ -343,7 +355,11 @@ function _M.new(config)
     local cache_config = config.cache_configuration or {}
     self.cache_enabled = cache_config.cache_enabled or false
     self.cache_ttl_success = cache_config.cache_ttl_success or 60
-    self.cache_ttl_failure = cache_config.cache_ttl_failure or 60
+    self.cache_ttl_failure = cache_config.cache_ttl_failure or 10
+    self.cache_key_template = TemplateString.new(
+        cache_config.cache_key_template or '{{ validation_service_url }}',
+        'liquid'
+    )
     if self.cache_enabled then
         if not _cache then
             local cache_max_size = cache_config.cache_max_size or 1000
@@ -548,7 +564,7 @@ function _M:access(context)
     -- cache lookup
     local cache_key
     if self.cache_enabled then
-        cache_key = get_cache_key()
+        cache_key = get_cache_key(self.cache_key_template, self.validation_service_url, service_args, context)
         local cached_status = self.cache:get(cache_key)
         if cached_status ~= nil then
             ngx.log(DEBUG, '- ExternalAuthServicePolicy : cache hit, status-> ', cached_status)

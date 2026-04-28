@@ -138,6 +138,11 @@
             "minimum": 1,
             "maximum": 100000,
             "default": 1000
+          },
+          "cache_key_template": {
+            "description": "Liquid template for the cache key. Available variables: {{ validation_service_url }} and any validation_service_params key.",
+            "type": "string",
+            "default": "{{ validation_service_url }}"
           }
         }
       },

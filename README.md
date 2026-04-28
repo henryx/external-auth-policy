@@ -220,8 +220,17 @@ The cache configuration section enables in-memory caching of auth service respon
 |cache_ttl_success | time to live in seconds for cached 2xx and 3xx responses | 60 | NO |
 |cache_ttl_failure | time to live in seconds for cached 4xx and 5xx responses | 60 | NO |
 |cache_max_size | maximum number of entries per worker cache | 1000 | NO |
+|cache_key_template | Liquid template used to generate the cache key | `{{ validation_service_url }}` | NO |
 
-The cache key is the full request URL, composed of scheme, host, path and query string (e.g. `http://localhost/api/resource?foo=bar`). Each distinct URL is cached independently.
+The cache key is rendered from the `cache_key_template` Liquid template. The following variables are available inside the template:
+
+| variable | description | example |
+|----------|-------------|---------|
+| `{{ validation_service_url }}` | the configured validation service URL | `https://auth-svc/auth` |
+| `{{ request_uri }}` | full request path including query string | `/apple?user_key=abc` |
+| `{{ args }}` | raw query string only, without `?` | `user_key=abc` |
+| `{{ <param> }}` | any key from `validation_service_params` (already rendered) | `{{ uri }}` |
+| `{{ original_request.uri }}` | any APICast context variable | `/apple` |
 
 ~~~json
 
@@ -229,7 +238,8 @@ The cache key is the full request URL, composed of scheme, host, path and query 
           "cache_enabled": true,
           "cache_ttl_success": 60,
           "cache_ttl_failure": 60,
-          "cache_max_size": 1000
+          "cache_max_size": 1000,
+          "cache_key_template": "{{ validation_service_url }}?uri={{ uri }}"
         }
 
 ~~~
@@ -335,7 +345,8 @@ The following sample is a full policy configuration, it should be inserted insid
         "cache_enabled": true,
         "cache_ttl_success": 60,
         "cache_ttl_failure": 60,
-        "cache_max_size": 1000
+        "cache_max_size": 1000,
+        "cache_key_template": "{{ validation_service_url }}?uri={{ uri }}"
        }
       }
      }
